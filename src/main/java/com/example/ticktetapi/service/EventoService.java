@@ -19,15 +19,16 @@ public class EventoService {
 
     @Transactional
     public Evento criar(EventoRequestDTO dto) {
-        Evento evento = Evento.builder()
-                .nome(dto.getNome())
-                .descricao(dto.getDescricao())
-                .dataHora(dto.getDataHora())
-                .local(dto.getLocal())
-                .preco(dto.getPreco())
-                .quantidadeTotal(dto.getQuantidadeTotal())
-                .quantidadeDisponivel(dto.getQuantidadeTotal())
-                .build();
+        Evento evento = new Evento();
+
+        evento.setNome(dto.getNome());
+        evento.setDescricao(dto.getDescricao());
+        evento.setDataHora(dto.getDataHora());
+        evento.setLocal(dto.getLocal());
+        evento.setPreco(dto.getPreco());
+        evento.setQuantidadeTotal(dto.getQuantidadeTotal());
+        evento.setQuantidadeDisponivel(dto.getQuantidadeTotal());
+
         return eventoRepository.save(evento);
     }
 
@@ -39,26 +40,31 @@ public class EventoService {
     @Transactional(readOnly = true)
     public Evento buscarPorId(Long id) {
         return eventoRepository.findById(id)
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Evento não encontrado com id: " + id));
+                .orElseThrow(() ->
+                        new RecursoNaoEncontradoException("Evento não encontrado com o ID: " + id));
     }
 
     @Transactional
     public Evento atualizar(Long id, EventoRequestDTO dto) {
         Evento evento = buscarPorId(id);
 
-        int ingressosVendidos = evento.getQuantidadeTotal() - evento.getQuantidadeDisponivel();
-        if (dto.getQuantidadeTotal() < ingressosVendidos) {
-            throw new RegraNegocioException(
-                    "A nova quantidade total não pode ser menor que a quantidade já vendida (" + ingressosVendidos + ")");
-        }
-
         evento.setNome(dto.getNome());
         evento.setDescricao(dto.getDescricao());
         evento.setDataHora(dto.getDataHora());
         evento.setLocal(dto.getLocal());
         evento.setPreco(dto.getPreco());
-        evento.setQuantidadeDisponivel(dto.getQuantidadeTotal() - ingressosVendidos);
+
+        if (dto.getQuantidadeTotal() < evento.getQuantidadeTotal() - evento.getQuantidadeDisponivel()) {
+            throw new RegraNegocioException(
+                    "A quantidade total não pode ser menor que a quantidade de ingressos já vendidos."
+            );
+        }
+
+        int ingressosVendidos =
+                evento.getQuantidadeTotal() - evento.getQuantidadeDisponivel();
+
         evento.setQuantidadeTotal(dto.getQuantidadeTotal());
+        evento.setQuantidadeDisponivel(dto.getQuantidadeTotal() - ingressosVendidos);
 
         return eventoRepository.save(evento);
     }
@@ -66,6 +72,13 @@ public class EventoService {
     @Transactional
     public void deletar(Long id) {
         Evento evento = buscarPorId(id);
+
+        if (evento.getQuantidadeDisponivel() < evento.getQuantidadeTotal()) {
+            throw new RegraNegocioException(
+                    "Não é possível excluir um evento que já possui ingressos vendidos."
+            );
+        }
+
         eventoRepository.delete(evento);
     }
 }
